@@ -1,1 +1,275 @@
+<script src="https://code.jquery.com/jquery-3.5.1.slim.min.js">
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/brython/3.9.5/brython.min.js">
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/brython/3.9.5/brython_stdlib.min.js">
+</script>
+</head>
+<body onload="brython()">
+<textarea id='myinput'></textarea>
+<button id="myupdate">submit</button>
+<div id='myoutput'></div>
+<div id='zone_kv'>kv list here</div>
+<div id='db_table'>db table here</div>
+<script type="text/python">
+
+from browser import document, html
+from browser import ajax
+
+url = "http://localhost:5000/api/update"
+
+def complete2(request):
+    data = request.json
+    document["myoutput"].text = data['data']
+
+def click(event):
+    headers = { 'Content-Type': 'application/json; charset=utf-8' };
+    print(document['myinput'].value)
+    import javascript
+    data = javascript.JSON.stringify(dict(doc=document['myinput'].value))
+    ajax.post(url, headers=headers, data=data, oncomplete=complete2)
+    document["myoutput"].text = "waiting..."
+
+document["myupdate"].bind("click", click)
+
+# ------------------------
+from browser import document, window
+from browser.html import TABLE, TR, TD, INPUT, BUTTON, PRE, TEXTAREA
+
+zone = document["zone_kv"]
+search_kv = "graph"
+"""Test if the browser supports local storage"""
+try:
+    storage = window.localStorage
+    storage.setItem("x", "x")
+    storage.removeItem("x")
+except:
+    storage = None
+
+def action_kv_delete(ev):
+    """User clicked on "remove" button"""
+    button = ev.target
+    row = button.closest("TR")
+    key = row.get(selector="TD")[0].text
+    storage.removeItem(key)
+    # refresh table
+    show_kv()
+
+def action_kv_add_search(ev):
+    """User clicked on "add" or "search" button"""
+    global search_kv
+    button = ev.target
+
+    if button.text == 'Search':
+        row = button.closest("TR")
+        print('search', search_kv)
+        search_kv = document['search_kv'].value
+        search_kv = search_kv.strip()
+    else:
+        key = document['search_kv'].value
+        value = document['note_kv'].value
+        if key.strip():
+            storage.setItem(key, value)
+    # refresh table
+    show_kv()
+
+def update_kv(ev):
+    """If a value field has been modified, update storage"""
+    row = ev.target.closest("TR")
+    key = row.get(selector="TD")[0].text
+    value = row.get(selector="INPUT")[0].value
+    storage.setItem(key, value)
+
+def show_kv(*args):
+    """Shows the data stored locally, add buttons to add / remove items"""
+    zone.clear()
+
+    if storage is None:
+        zone <= "No local storage for this browser"
+        return
+
+    table = TABLE()
+
+    btn_add = BUTTON("add", Class="btn-ls")
+    btn_search = BUTTON("Search",Class="btn-ls")
+    btn_add.bind('click', action_kv_add_search)
+    btn_search.bind('click', action_kv_add_search)
+    table <= TR(TD(INPUT(id='search_kv', value=search_kv)) +
+        TD(btn_add + btn_search))
+    table <= TR(TEXTAREA(id='note_kv'))
+
+    for i in range(storage.length):
+        key = storage.key(i)
+        value = storage.getItem(key)
+        if len(search_kv) > 2 and (search_kv in key or search_kv in value):
+            value_field = PRE(value, style=dict(width=800))
+            # value_field.bind("change", update_kv)
+            btn = BUTTON("remove", Class="btn-ls")
+            btn.bind('click', action_kv_delete)
+            table <= TR(TD(key) + TD(btn))
+            table <= TR(value_field)
+
+    zone <= table
+
+
+
+show_kv()
+
+# ------------------------
+# indexd DB for entity relationship graph
+from browser import document, window, html
+IDB = window.indexedDB
+search_terms = {}
+
+def create_db(*args):
+      # The database did not previously exist, so create object stores and indexes.
+      print('create db')
+      db = dbreq.result
+      store = db.createObjectStore("eb", {"keyPath": "eb"})
+      entityIndex = store.createIndex("by_entity", "entity")
+      relationIndex = store.createIndex("by_relation", "relation")
+      print('db scrture')
+      # Populate with initial data.
+      store.put({"entity": "cap-backend", "relation": "down stream", "eb": "PCAP"})
+      store.put({"entity": "cap-backend", "relation": "up stream", "eb": "hp-ep-mt"})
+
+
+def btn_click(ev):
+    """Generic callback function for buttons
+    """
+    global search_terms
+    # The text on the button indicates the action: Add, Edit, Update or Delete
+    action = ev.target.text
+
+    # table row of the clicked button
+    row = ev.target.parent.parent
+
+    if action == "Delete":
+        db = dbreq.result
+        tx = db.transaction("eb", "readwrite")
+        store = tx.objectStore("eb")
+        cursor = store.delete(row.key)
+
+        # when record is deleted, update table
+        cursor.bind("success", show)
+
+    elif action == "Add":
+        values = [entry.value for entry in row.get(selector="INPUT")]
+        data = dict(zip(['entity', 'relation', 'eb'], values))
+        db = dbreq.result
+        tx = db.transaction("eb", "readwrite")
+        store = tx.objectStore("eb")
+        if action == "Add":
+            cursor = store.put(data)
+        else:
+            cursor = store.put(data, row.key)
+        search_terms = data
+        # when record is added, update table
+        cursor.bind("success", show_db)
+
+    elif action == "Edit":
+        # Replace cells for "entity" and "author" by INPUT fields
+        # Since isbn is he keyPath it can't be edited
+        cells = row.get(selector="TD")
+        for cell in cells[:-2]:
+            value = cell.text
+            cell.clear()
+            cell <= html.INPUT(value=value)
+
+        # Replace buttons "Edit" and "Delete" by button "Update"
+        cells[-1].clear()
+        update_btn = html.BUTTON("Update")
+        cells[-1] <= update_btn
+
+        # Bind its "click" event
+        update_btn.bind("click", btn_click)
+
+    elif action == "Update":
+        values = [entry.value for entry in row.select("INPUT")]
+        data = dict(zip(["entity", "relation"], values))
+        data['eb'] = row.key # required for the "store.put" method below
+
+        db = dbreq.result
+        tx = db.transaction("eb", "readwrite")
+        store = tx.objectStore("eb")
+        cursor = store.put(data)
+
+        # When record is updated, update table
+        cursor.bind("success", show)
+    elif action == 'Search':
+        values = [entry.value for entry in row.get(selector="INPUT")]
+        search_terms = dict(zip(['entity', 'relation', 'eb'], values))
+        print('search', values, search_terms)
+        db = dbreq.result
+        tx = db.transaction("eb", "readonly")
+        store = tx.objectStore("eb")
+        cursor = store.openCursor()
+        cursor.bind("success", show_db)
+
+def show_db(ev):
+    """Show the contents of store "eb" in a table"""
+    print('show db')
+    db = dbreq.result
+    tx = db.transaction("eb", "readonly")
+    store = tx.objectStore("eb")
+    cursor = store.openCursor()
+
+    # clear table
+    document["db_table"].clear()
+
+    # headers
+    t = html.TABLE()
+    document["db_table"] <= t
+
+    t <= html.TR(html.TH(x) for x in ["Entity", "relation", "Entity", "Actions"])
+
+    def add_row(ev):
+        """Add a row to the table for each iteration on cursor
+        When cursor in empty, add a line for new record insertion
+        """
+        print('add row')
+        res = ev.target.result
+        if res:
+            v = res.value
+            toShow = False
+            for key in ["entity", "relation", "eb"]:
+                print(search_terms.get(key), getattr(v, key))
+                if search_terms.get(key) and search_terms[key] == getattr(v, key):
+                    toShow = True
+                    break
+            if toShow:
+                row = html.TR()
+                row <= (html.TD(getattr(v, key))
+                    for key in ["entity", "relation", "eb"])
+                row <= html.TD(html.BUTTON("Edit")+
+                    html.BUTTON("Delete"))
+                row.key = res.key
+                t <= row
+            getattr(res, "continue")()
+        else:
+            # add empty row
+            print('empty row')
+            row = html.TR()
+            row <= (html.TD(html.INPUT(name="new_%s" %key))
+                for key in ["entity", "relation", "eb"])
+            row <= html.TD(html.BUTTON("Add")+
+                html.BUTTON("Search"))
+            t <= row
+            # bind all buttons
+            for btn in t.get(selector="BUTTON"):
+                btn.bind("click", btn_click)
+
+    cursor.bind("success", add_row)
+
+
+dbreq = IDB.open("library")
+
+# If database doesn't exist, create it
+dbreq.bind("upgradeneeded", create_db)
+
+# Else print a table with all elements in table "books"
+dbreq.bind("success", show_db)
+
+</script>
+</body>
 
