@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Getting Started</title>
+    <script type="text/javascript"
+        src="https://cdn.jsdelivr.net/npm/brython@3.10.0/brython.min.js">
+    </script>
+    <script type="text/javascript"
+        src="https://cdn.jsdelivr.net/npm/brython@3.10.0/brython_stdlib.js">
+    </script>
+  </head>
+  <body onload="brython()">
+      <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-vis"></script>
+      <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/universal-sentence-encoder"></script>
+      <script src="myhorajs.js"></script>
+
+<button onclick="test()">test</button>
+
+<script type="text/python">
+from browser import window
+horajs = window.horajs
+use = window.use
+data = "able before can do elf fight glow hight ink jack kite lemon model nook offer pig quest rest start time unix voice wait xray yachet zest test".split()
+data = """Will it snow tomorrow?
+Recently a lot of hurricanes have hit the US
+Global warming is real
+An apple a day, keeps the doctors away
+Eating strawberries is healthy
+what is your age?
+How old are you?
+How are you?
+The dog bit Johnny
+Johnny bit the dog
+The cat ate the mouse
+The mouse ate the cat""".splitlines()
+all_data = dict()
+
+async def demo():
+    dimension = 512
+    # mynew(dimension, max_item, n_neigh, n_neigh0, ef_build, ef_search, has_deletion)
+    # <HNSWIndexUsize> (dimension: 50, max_item: 1000000, n_neigh: 32, n_neigh0: 64, ef_build: 20, ef_search: 500, has_deletion: False)
+    bf_idx = horajs.HNSWIndexUsize.mynew(dimension, 1000000, 32, 64, 20, 500, False)
+    model = await use.load()
+    print('u-s-e model load')
+
+    for i in range(100):
+        sentence = data[i % len(data)]
+        all_data[i] = sentence
+        embeddings = await model.embed([sentence])
+        feature = embeddings.arraySync()[0]
+        if i < len(data):
+          print(data[i], feature[:10])
+        bf_idx.add(feature, i) 
+    bf_idx.build("euclidean")
+    print('index built')
+
+    sentence = "mouse eat cat"
+    embeddings = await model.embed([sentence])
+    feature = embeddings.arraySync()[0]
+    print(feature[:10])
+    results = bf_idx.search(feature, 5)
+    for result in results.to_dict():
+        print(result, all_data[int(result)])
+
+from browser import aio
+
+async def main():
+    await horajs.init()
+    await horajs.init_env()
+    print('after init_env')
+    await demo()
+
+
+aio.run(main())
+
+
+</script>
+  </body>
+</html>
