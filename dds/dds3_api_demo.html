@@ -1,7 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
+    <script src="coi-serviceworker.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DDS WebAssembly JavaScript API Demo</title>
     <style>
@@ -93,7 +95,8 @@
             font-weight: 500;
         }
 
-        input[type="text"], select {
+        input[type="text"],
+        select {
             background-color: var(--code-bg);
             border: 1px solid var(--card-border);
             color: var(--text-main);
@@ -105,7 +108,8 @@
             box-sizing: border-box;
         }
 
-        input[type="text"]:focus, select:focus {
+        input[type="text"]:focus,
+        select:focus {
             outline: none;
             border-color: var(--primary);
         }
@@ -164,7 +168,8 @@
             margin-top: 12px;
         }
 
-        table.dd-table th, table.dd-table td {
+        table.dd-table th,
+        table.dd-table td {
             border: 1px solid var(--card-border);
             padding: 8px 12px;
             text-align: center;
@@ -184,11 +189,23 @@
             margin-bottom: 16px;
         }
 
-        .status.loading { background-color: #0284c7; color: white; }
-        .status.ready { background-color: #166534; color: #bbf7d0; }
-        .status.error { background-color: #991b1b; color: #fecaca; }
+        .status.loading {
+            background-color: #0284c7;
+            color: white;
+        }
+
+        .status.ready {
+            background-color: #166534;
+            color: #bbf7d0;
+        }
+
+        .status.error {
+            background-color: #991b1b;
+            color: #fecaca;
+        }
     </style>
 </head>
+
 <body>
     <div class="container">
         <header>
@@ -202,7 +219,8 @@
             <h2>Deal Deal PBN Input <span class="badge">PBN Format</span></h2>
             <div class="input-group">
                 <label for="pbn">PBN Remaining Cards String:</label>
-                <input type="text" id="pbn" value="N:QJ6.K652.J85.T98 873.J97.AT764.Q4 K5.T83.KQ9.A7652 AT942.AQ4.32.KJ3">
+                <input type="text" id="pbn"
+                    value="N:QJ6.K652.J85.T98 873.J97.AT764.Q4 K5.T83.KQ9.A7652 AT942.AQ4.32.KJ3">
             </div>
 
             <div style="display: flex; gap: 16px;">
@@ -314,12 +332,12 @@
             const pbn = document.getElementById('pbn').value;
             const trump = parseInt(document.getElementById('trump').value);
             const first = parseInt(document.getElementById('first').value);
-            
+
             reusableContext.resetForSolve();
             const start = performance.now();
             const res = ddsApi.solveBoardPBN(pbn, trump, first, [], [], -1, 3, 0, reusableContext);
             const elapsed = (performance.now() - start).toFixed(2);
-            
+
             logOutput({
                 note: `Solved using reusable SolverContext in ${elapsed} ms`,
                 result: res
@@ -329,4 +347,5 @@
         window.onload = init;
     </script>
 </body>
+
 </html>
