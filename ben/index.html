@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <script src="coi-serviceworker.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BEN - Client-Side Bridge Engine in JavaScript</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- TensorFlow.js Library -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+  <!-- BEN Engine JS Modules -->
+  <script src="dds3_wasm_api.js"></script>
+  <script src="dds3_api.js"></script>
+  <script src="objects.js"></script>
+  <script src="deck52.js"></script>
+  <script src="binary.js"></script>
+  <script src="scoring.js"></script>
+  <script src="bidding.js"></script>
+  <script src="tf_models.js"></script>
+  <script src="sample.js"></script>
+  <script src="bots.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <div class="brand">
+        <h1>♠ BEN Bridge Engine</h1>
+        <span class="badge">Browser WASM & TF.js</span>
+      </div>
+      <div class="game-actions">
+        <button id="btn-new-deal" class="btn btn-primary">🎲 New Deal</button>
+        <button id="btn-restart" class="btn btn-secondary">🔄 Restart Hand</button>
+        <button id="btn-auto-play" class="btn btn-accent">⚡ Bot Auto-Play</button>
+      </div>
+    </header>
+
+    <div class="status-bar">
+      <div class="status-item">
+        <span class="label">Dealer / Vuln:</span>
+        <span id="info-dealer-vuln" class="val">North (None)</span>
+      </div>
+      <div class="status-item">
+        <span class="label">Contract:</span>
+        <span id="info-contract" class="val">Undecided</span>
+      </div>
+      <div class="status-item">
+        <span class="label">Tricks Won:</span>
+        <span id="info-tricks" class="val">NS: 0 | EW: 0</span>
+      </div>
+      <div class="status-item">
+        <span class="label">Status:</span>
+        <span id="info-status" class="val status-active">Initializing Engine...</span>
+      </div>
+    </div>
+
+    <main class="table-area">
+      <!-- Player North -->
+      <div id="seat-N" class="seat seat-north">
+        <div class="seat-header">
+          <span class="seat-name">North (Bot)</span>
+          <span class="turn-indicator">Turn</span>
+        </div>
+        <div id="hand-N" class="hand-cards"></div>
+      </div>
+
+      <!-- Player West -->
+      <div id="seat-W" class="seat seat-west">
+        <div class="seat-header">
+          <span class="seat-name">West (Bot)</span>
+          <span class="turn-indicator">Turn</span>
+        </div>
+        <div id="hand-W" class="hand-cards"></div>
+      </div>
+
+      <!-- Table Center -->
+      <div class="felt-table">
+        <div class="felt-center">
+          <div id="trick-N" class="played-slot slot-N"></div>
+          <div id="trick-W" class="played-slot slot-W"></div>
+          <div id="trick-E" class="played-slot slot-E"></div>
+          <div id="trick-S" class="played-slot slot-S"></div>
+        </div>
+
+        <div id="auction-history" class="auction-history-box">
+          <div class="auction-title">Auction History</div>
+          <table class="auction-table">
+            <thead>
+              <tr>
+                <th>W</th><th>N</th><th>E</th><th>S</th>
+              </tr>
+            </thead>
+            <tbody id="auction-bids-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Player East -->
+      <div id="seat-E" class="seat seat-east">
+        <div class="seat-header">
+          <span class="seat-name">East (Bot)</span>
+          <span class="turn-indicator">Turn</span>
+        </div>
+        <div id="hand-E" class="hand-cards"></div>
+      </div>
+
+      <!-- Player South (Human) -->
+      <div id="seat-S" class="seat seat-south">
+        <div class="seat-header">
+          <span class="seat-name">South (You)</span>
+          <span class="turn-indicator">Your Turn</span>
+        </div>
+        <div id="hand-S" class="hand-cards interactive"></div>
+      </div>
+    </main>
+
+    <!-- Bidding Box Modal / Overlay -->
+    <div id="bidding-modal" class="modal-overlay hidden">
+      <div id="bidding-box" class="bidding-box">
+        <div id="bidding-header" class="bidding-header">
+          <span class="header-title">♠ Bidding Box</span>
+          <span class="drag-hint">⋮⋮ Drag to move</span>
+        </div>
+        <div class="bidding-controls">
+          <div class="special-bids">
+            <button class="bid-btn special pass-btn" data-bid="PASS">PASS</button>
+            <button class="bid-btn special db-btn" data-bid="X">X</button>
+            <button class="bid-btn special rdb-btn" data-bid="XX">XX</button>
+          </div>
+          <div class="contract-grid" id="contract-bids-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hand Result Modal -->
+    <div id="result-modal" class="modal-overlay hidden">
+      <div class="result-box">
+        <h2 id="result-title">Hand Completed</h2>
+        <p id="result-desc"></p>
+        <div class="result-actions">
+          <button id="btn-modal-next" class="btn btn-primary">Play Next Deal</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
