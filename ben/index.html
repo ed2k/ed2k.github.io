@@ -123,10 +123,27 @@
         <div class="bidding-controls">
           <div class="special-bids">
             <button class="bid-btn special pass-btn" data-bid="PASS">PASS</button>
-            <button class="bid-btn special db-btn" data-bid="X">X</button>
-            <button class="bid-btn special rdb-btn" data-bid="XX">XX</button>
+            <button id="btn-bid-x" class="bid-btn special db-btn" data-bid="X">X</button>
+            <button id="btn-bid-xx" class="bid-btn special rdb-btn" data-bid="XX">XX</button>
           </div>
-          <div class="contract-grid" id="contract-bids-grid"></div>
+          <!-- Level Selector Row (1 - 7) -->
+          <div class="level-selector" id="bidding-level-row">
+            <button class="level-btn" data-level="1">1</button>
+            <button class="level-btn" data-level="2">2</button>
+            <button class="level-btn" data-level="3">3</button>
+            <button class="level-btn" data-level="4">4</button>
+            <button class="level-btn" data-level="5">5</button>
+            <button class="level-btn" data-level="6">6</button>
+            <button class="level-btn" data-level="7">7</button>
+          </div>
+          <!-- Suit/Strain Selector Row (C, D, H, S, N) -->
+          <div class="suit-selector" id="bidding-suit-row">
+            <button class="suit-btn suit-C" data-strain="C">♣</button>
+            <button class="suit-btn suit-D" data-strain="D">♦</button>
+            <button class="suit-btn suit-H" data-strain="H">♥</button>
+            <button class="suit-btn suit-S" data-strain="S">♠</button>
+            <button class="suit-btn suit-N" data-strain="N">NT</button>
+          </div>
         </div>
       </div>
     </div>

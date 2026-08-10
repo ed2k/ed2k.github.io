@@ -9,7 +9,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const elStatus = document.getElementById('info-status');
 
     const elBiddingModal = document.getElementById('bidding-modal');
-    const elContractGrid = document.getElementById('contract-bids-grid');
 
     const seats = ['N', 'E', 'S', 'W'];
     let models = null;
@@ -49,39 +48,84 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function initGame() {
-        populateBiddingGrid();
         setupEventListeners();
         startNewDeal();
     }
 
-    function populateBiddingGrid() {
-        elContractGrid.innerHTML = '';
-        const suits = ['C', 'D', 'H', 'S', 'N'];
-        for (let level = 1; level <= 7; level++) {
-            for (const suit of suits) {
-                const bidStr = `${level}${suit}`;
-                const btn = document.createElement('button');
-                btn.className = 'bid-btn';
-                btn.dataset.bid = bidStr;
-                btn.textContent = bidStr;
-                elContractGrid.appendChild(btn);
-            }
-        }
-    }
+    let selectedLevel = 1;
 
     function setupEventListeners() {
         document.getElementById('btn-new-deal').addEventListener('click', startNewDeal);
         document.getElementById('btn-restart').addEventListener('click', restartHand);
         document.getElementById('btn-auto-play').addEventListener('click', toggleAutoPlay);
 
-        document.querySelectorAll('.bid-btn').forEach(btn => {
+        // Special bid buttons (PASS, X, XX)
+        document.querySelectorAll('.bid-btn.special').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const bid = e.target.dataset.bid;
+                const bid = e.currentTarget.dataset.bid;
                 handleHumanBid(bid);
             });
         });
 
+        // Level selector buttons (1 - 7)
+        document.querySelectorAll('.level-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const level = parseInt(e.currentTarget.dataset.level, 10);
+                selectedLevel = level;
+                updateBiddingBoxUI();
+            });
+        });
+
+        // Suit selector buttons (C, D, H, S, N)
+        document.querySelectorAll('.suit-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const strain = e.currentTarget.dataset.strain;
+                const combinedBid = `${selectedLevel}${strain}`;
+                handleHumanBid(combinedBid);
+            });
+        });
+
         setupDraggableBiddingBox();
+    }
+
+    function updateBiddingBoxUI() {
+        const strains = ['C', 'D', 'H', 'S', 'N'];
+        const levels = [1, 2, 3, 4, 5, 6, 7];
+
+        let firstLegalLevel = null;
+        levels.forEach(level => {
+            const btn = document.querySelector(`.level-btn[data-level="${level}"]`);
+            if (!btn) return;
+            const hasLegalBid = strains.some(s => BENBidding.canBid(`${level}${s}`, state.auction));
+            btn.disabled = !hasLegalBid;
+            if (hasLegalBid && firstLegalLevel === null) {
+                firstLegalLevel = level;
+            }
+        });
+
+        const currentLevelBtn = document.querySelector(`.level-btn[data-level="${selectedLevel}"]`);
+        if (!currentLevelBtn || currentLevelBtn.disabled) {
+            selectedLevel = firstLegalLevel || 1;
+        }
+
+        levels.forEach(level => {
+            const btn = document.querySelector(`.level-btn[data-level="${level}"]`);
+            if (btn) {
+                btn.classList.toggle('selected', level === selectedLevel);
+            }
+        });
+
+        strains.forEach(strain => {
+            const btn = document.querySelector(`.suit-btn[data-strain="${strain}"]`);
+            if (!btn) return;
+            const bid = `${selectedLevel}${strain}`;
+            btn.disabled = !BENBidding.canBid(bid, state.auction);
+        });
+
+        const btnX = document.getElementById('btn-bid-x');
+        if (btnX) btnX.disabled = !BENBidding.canDouble(state.auction);
+        const btnXX = document.getElementById('btn-bid-xx');
+        if (btnXX) btnXX.disabled = !BENBidding.canRedouble(state.auction);
     }
 
     function setupDraggableBiddingBox() {
@@ -89,41 +133,48 @@ document.addEventListener('DOMContentLoaded', async () => {
         const header = document.getElementById('bidding-header');
         if (!box || !header) return;
 
-        let isDragging = false;
+        let activePointerId = null;
         let startX = 0;
         let startY = 0;
-        let initialLeft = 0;
-        let initialTop = 0;
 
-        header.addEventListener('mousedown', (e) => {
-            isDragging = true;
-            startX = e.clientX;
-            startY = e.clientY;
+        const startDrag = (e) => {
+            if (window.innerWidth <= 600) return;
+            if (activePointerId !== null || !e.isPrimary) return;
+
             const rect = box.getBoundingClientRect();
-            initialLeft = rect.left;
-            initialTop = rect.top;
-            box.style.left = `${initialLeft}px`;
-            box.style.top = `${initialTop}px`;
-        });
+            activePointerId = e.pointerId;
+            startX = e.clientX - rect.left;
+            startY = e.clientY - rect.top;
+            box.style.left = `${rect.left}px`;
+            box.style.top = `${rect.top}px`;
+            box.style.transform = 'none';
+            header.setPointerCapture(e.pointerId);
+        };
 
-        document.addEventListener('mousemove', (e) => {
-            if (!isDragging) return;
-            const dx = e.clientX - startX;
-            const dy = e.clientY - startY;
+        const doDrag = (e) => {
+            if (e.pointerId !== activePointerId) return;
 
-            let newLeft = initialLeft + dx;
-            let newTop = initialTop + dy;
+            const maxLeft = Math.max(8, window.innerWidth - box.offsetWidth - 8);
+            const maxTop = Math.max(8, window.innerHeight - box.offsetHeight - 8);
+            const left = Math.min(maxLeft, Math.max(8, e.clientX - startX));
+            const top = Math.min(maxTop, Math.max(8, e.clientY - startY));
 
-            newLeft = Math.max(10, Math.min(window.innerWidth - box.offsetWidth - 10, newLeft));
-            newTop = Math.max(10, Math.min(window.innerHeight - box.offsetHeight - 10, newTop));
+            box.style.left = `${left}px`;
+            box.style.top = `${top}px`;
+        };
 
-            box.style.left = `${newLeft}px`;
-            box.style.top = `${newTop}px`;
-        });
+        const stopDrag = (e) => {
+            if (e.pointerId !== activePointerId) return;
+            if (header.hasPointerCapture(e.pointerId)) {
+                header.releasePointerCapture(e.pointerId);
+            }
+            activePointerId = null;
+        };
 
-        document.addEventListener('mouseup', () => {
-            isDragging = false;
-        });
+        header.addEventListener('pointerdown', startDrag);
+        header.addEventListener('pointermove', doDrag);
+        header.addEventListener('pointerup', stopDrag);
+        header.addEventListener('pointercancel', stopDrag);
     }
 
     function startNewDeal() {
@@ -135,6 +186,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             E: parseHandStr(handsStr[1]),
             S: parseHandStr(handsStr[2]),
             W: parseHandStr(handsStr[3])
+        };
+
+        state.initialHands52 = {
+            N: new Int32Array(state.hands52.N),
+            E: new Int32Array(state.hands52.E),
+            S: new Int32Array(state.hands52.S),
+            W: new Int32Array(state.hands52.W)
         };
 
         const dealers = ['N', 'E', 'S', 'W'];
@@ -153,6 +211,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function restartHand() {
+        if (state.initialHands52) {
+            seats.forEach(s => {
+                state.hands52[s] = new Int32Array(state.initialHands52[s]);
+            });
+        }
         state.auction = [];
         state.contract = null;
         state.tricksWon = { NS: 0, EW: 0 };
@@ -195,7 +258,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         elContract.textContent = state.contract || 'Bidding...';
         elTricks.textContent = `NS: ${state.tricksWon.NS} | EW: ${state.tricksWon.EW}`;
 
-        // Render seats & hands
+        // Render seats & hands (one suit per row, played cards greyed out)
+        const suitSymbols = ['♠', '♥', '♦', '♣'];
+        const suitNames = ['S', 'H', 'D', 'C'];
+
         seats.forEach((seat, idx) => {
             const seatEl = document.getElementById(`seat-${seat}`);
             seatEl.classList.toggle('active-turn', idx === state.turnIndex && state.stage !== 'ended');
@@ -203,20 +269,50 @@ document.addEventListener('DOMContentLoaded', async () => {
             const handEl = document.getElementById(`hand-${seat}`);
             handEl.innerHTML = '';
 
-            const hand = state.hands52[seat];
-            for (let c = 0; c < 52; c++) {
-                if (hand[c] > 0) {
-                    const cardUi = document.createElement('div');
-                    const cardObj = BENObjects.Card.fromCode(c);
-                    cardUi.className = `card-ui suit-${cardObj.SUITS[cardObj.suit]}`;
-                    cardUi.textContent = cardObj.symbol();
+            const currentHand = state.hands52[seat];
+            const initialHand = state.initialHands52 ? state.initialHands52[seat] : currentHand;
 
-                    if (seat === 'S' && state.stage === 'play' && state.turnIndex === 2) {
-                        cardUi.addEventListener('click', () => handleHumanCardPlay(c));
+            for (let suitI = 0; suitI < 4; suitI++) {
+                const suitRow = document.createElement('div');
+                suitRow.className = `suit-row suit-${suitNames[suitI]}`;
+
+                const suitBadge = document.createElement('span');
+                suitBadge.className = 'suit-row-badge';
+                suitBadge.textContent = suitSymbols[suitI];
+                suitRow.appendChild(suitBadge);
+
+                const cardsContainer = document.createElement('div');
+                cardsContainer.className = 'suit-row-cards';
+
+                let cardCount = 0;
+                for (let r = 0; r < 13; r++) {
+                    const c = suitI * 13 + r;
+                    if (initialHand[c] > 0) {
+                        cardCount++;
+                        const isPlayed = currentHand[c] === 0;
+                        const cardUi = document.createElement('div');
+                        const cardObj = BENObjects.Card.fromCode(c);
+
+                        cardUi.className = `card-ui suit-${cardObj.SUITS[cardObj.suit]}${isPlayed ? ' played' : ''}`;
+                        cardUi.textContent = cardObj.RANKS[cardObj.rank];
+
+                        if (!isPlayed && seat === 'S' && state.stage === 'play' && state.turnIndex === 2) {
+                            cardUi.addEventListener('click', () => handleHumanCardPlay(c));
+                        }
+
+                        cardsContainer.appendChild(cardUi);
                     }
-
-                    handEl.appendChild(cardUi);
                 }
+
+                if (cardCount === 0) {
+                    const voidSpan = document.createElement('span');
+                    voidSpan.className = 'suit-row-void';
+                    voidSpan.textContent = '—';
+                    cardsContainer.appendChild(voidSpan);
+                }
+
+                suitRow.appendChild(cardsContainer);
+                handEl.appendChild(suitRow);
             }
         });
 
@@ -278,6 +374,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Show/hide bidding modal for South
         if (state.stage === 'bidding' && state.turnIndex === 2 && !state.autoPlay) {
+            updateBiddingBoxUI();
             elBiddingModal.classList.remove('hidden');
         } else {
             elBiddingModal.classList.add('hidden');

@@ -112,11 +112,83 @@
             return candidates;
         }
 
+        static doRollout(auction, candidates) {
+            if (!candidates || candidates.length <= 1) return false;
+            if (BotBid.getNStepsAuction(auction) > 1) return true;
+            if (auction.some(bid => bid !== 'PASS' && bid !== 'PAD_START')) return true;
+            if (candidates.every(c => c.bid !== 'PASS')) return true;
+            return false;
+        }
+
+        biddingRollout(auctionSoFar, candidateBid) {
+            const auction = [...auctionSoFar, candidateBid];
+            while (!BENBidding.auctionOver(auction) && auction.length < 30) {
+                const nSteps = BotBid.getNStepsAuction(auction);
+                const handIx = auction.length % 4;
+                const X = getAuctionBinary(nSteps, auction, handIx, this.hand, this.vuln);
+                const softmaxArr = this.model.predictSeq(X);
+                const lastSoftmax = softmaxArr[softmaxArr.length - 1] || new Array(40).fill(1 / 40);
+
+                let bestI = 2;
+                let bestProb = -1;
+                for (let i = 0; i < lastSoftmax.length; i++) {
+                    const bName = ID2BID[i] || 'PASS';
+                    if (lastSoftmax[i] > bestProb && BENBidding.canBid(bName, auction)) {
+                        bestProb = lastSoftmax[i];
+                        bestI = i;
+                    }
+                }
+                const chosenBid = ID2BID[bestI] || 'PASS';
+                auction.push(chosenBid);
+            }
+            return auction;
+        }
+
+        expectedScore(turnToBid, contract) {
+            if (!contract) return 0;
+            const scoresByTrick = contractScoresByTrick(contract, this.vuln);
+            const declSeat = contract[contract.length - 1];
+            const declI = 'NESW'.indexOf(declSeat);
+            const isUs = (turnToBid % 2) === (declI % 2);
+
+            const meanScore = scoresByTrick[7] || 0;
+            return isUs ? meanScore : -meanScore;
+        }
+
         async bid(auction) {
             const candidates = this.getBidCandidates(auction);
-            const chosen = candidates[0] ? candidates[0].bid : 'PASS';
-            console.log(`[BotBid] Final chosen bid decision: ${chosen}`);
-            return new BidResp(chosen, candidates, []);
+            if (!candidates || candidates.length === 0) {
+                return new BidResp('PASS', [new CandidateBid('PASS', 1.0)], []);
+            }
+
+            if (!BotBid.doRollout(auction, candidates)) {
+                const chosen = candidates[0].bid;
+                console.log(`[BotBid] Instant policy decision (no rollout needed): ${chosen}`);
+                return new BidResp(chosen, candidates, []);
+            }
+
+            console.log(`[BotBid] Evaluating ${candidates.length} candidates with auction rollout...`);
+            const turnToBid = auction.length % 4;
+            const evCandidates = [];
+
+            for (const candidate of candidates) {
+                const rolloutAuction = this.biddingRollout(auction, candidate.bid);
+                const finalContract = BENBidding.getContract(rolloutAuction);
+                const ev = this.expectedScore(turnToBid, finalContract);
+                console.log(`  -> Candidate '${candidate.bid}' rollout contract: ${finalContract || 'Pass Out'}, EV: ${ev}`);
+                evCandidates.push(new CandidateBid(
+                    candidate.bid,
+                    candidate.insta_score,
+                    6.5,
+                    0.5,
+                    ev
+                ));
+            }
+
+            evCandidates.sort((a, b) => (b.expected_score || 0) - (a.expected_score || 0));
+            const chosen = evCandidates[0].bid;
+            console.log(`[BotBid] Final chosen bid after EV rollout: ${chosen}`);
+            return new BidResp(chosen, evCandidates, []);
         }
     }
 
